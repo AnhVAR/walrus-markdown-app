@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Live Markdown Preview</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown-light.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <div id="preview" class="markdown-body"></div>
+  <script type="module">
+    // Định nghĩa tất cả extension
+    const extensions = [{
+      name: "sui-connect",
+      level: "block",
+      start: eval('(' + "function start(src) { return src.match(/:::sui-connect/)?.index; }" + ')'),
+      tokenizer: eval('(' + "function tokenizer(src) {\n        const rule = /^:::sui-connect\\s*([\\s\\S]*?):::/;\n        const match = rule.exec(src);\n        if (match) {\n            return {\n                type: 'sui-connect',\n                raw: match[0],\n                text: match[1].trim(),\n            };\n        }\n        return undefined;\n    }" + ')'),
+      renderer: eval('(' + "function renderer(token) {\n        const id = `sui-connect-${Math.random().toString(36).substr(2, 9)}`;\n        return `\n            <div id=\"${id}\" class=\"sui-connect-block\">\n            <select id=\"${id}-select\" class=\"sui-wallet-select\">\n                <option>Loading wallets...</option>\n            </select>\n            <button id=\"${id}-btn\" class=\"sui-connect-btn\" disabled>Connect Sui Wallet</button>\n            <button id=\"${id}-disconnect\" class=\"sui-disconnect-btn\" style=\"display:none;margin-left:8px;\">Disconnect</button>\n            </div>\n            \n        `;\n    }" + ')')
+    },
+{
+      name: "walruscan",
+      level: "block",
+      start: eval('(' + "function start(src) { return src.match(/:::walruscan/)?.index; }" + ')'),
+      tokenizer: eval('(' + "function tokenizer(src) {\n        const rule = /^:::walruscan\\s*([\\s\\S]*?):::/;\n        const match = rule.exec(src);\n        if (match) {\n            return {\n                type: 'walruscan',\n                raw: match[0],\n                blobId: match[1].trim(),\n            };\n        }\n        return undefined;\n    }" + ')'),
+      renderer: eval('(' + "function renderer(token) {\n        const blobId = token.blobId;\n        const url = blobId\n            ? `https://walruscan.com/testnet/blob/${encodeURIComponent(blobId)}`\n            : `https://walruscan.com/testnet/home`;\n        const btnLabel = blobId\n            ? `View Blob: ${blobId}`\n            : `Open Walruscan`;\n        return `\n            <div class=\"walruscan-block\">\n                <button onclick=\"window.open('${url}', '_blank', 'noopener,noreferrer')\">\n                    ${btnLabel}\n                </button>\n            </div>\n        `;\n    }" + ')')
+    },
+{
+      name: "suiscan",
+      level: "block",
+      start: eval('(' + "function start(src) { return src.match(/:::suiscan/)?.index; }" + ')'),
+      tokenizer: eval('(' + "function tokenizer(src) {\n        const rule = /^:::suiscan\\s*([\\s\\S]*?):::/;\n        const match = rule.exec(src);\n        if (match) {\n            return {\n                type: 'suiscan',\n                raw: match[0],\n                accountId: match[1].trim(),\n            };\n        }\n        return undefined;\n    }" + ')'),
+      renderer: eval('(' + "function renderer(token) {\n        const accountId = token.accountId;\n        const url = accountId\n            ? `https://suiscan.xyz/testnet/account/${encodeURIComponent(accountId)}`\n            : `https://suiscan.xyz/testnet/`;\n        const btnLabel = accountId\n            ? `View Account: ${accountId}`\n            : `Open Suiscan`;\n        return `\n            <div class=\"suiscan-block\">\n                <button onclick=\"window.open('${url}', '_blank', 'noopener,noreferrer')\">\n                    ${btnLabel}\n                </button>\n            </div>\n        `;\n    }" + ')')
+    },
+{
+      name: "walrus-image",
+      level: "block",
+      start: eval('(' + "function start(src) { return src.match(/:::walrus-image/)?.index; }" + ')'),
+      tokenizer: eval('(' + "function tokenizer(src) {\n        // Hỗ trợ cú pháp: :::walrus-image <blobId> [width] [height] :::\n        const rule = /^:::walrus-image\\s*([^\\s]+)(?:\\s+(\\d+))?(?:\\s+(\\d+))?\\s*:::/;\n        const match = rule.exec(src);\n        if (match) {\n            return {\n                type: 'walrus-image',\n                raw: match[0],\n                blobId: match[1].trim(),\n                width: match[2] ? parseInt(match[2], 10) : undefined,\n                height: match[3] ? parseInt(match[3], 10) : undefined,\n            };\n        }\n        return undefined;\n    }" + ')'),
+      renderer: eval('(' + "function renderer(token) {\n        const { blobId, width, height } = token;\n        if (!blobId) {\n            return `<div class=\"walrus-image-block\">No blobId provided.</div>`;\n        }\n        const objUrl = `https://aggregator.walrus-testnet.walrus.space/v1/blobs/${encodeURIComponent(blobId)}`;\n        const sizeAttrs = [\n            width ? `width=\"${width}\"` : '',\n            height ? `height=\"${height}\"` : '',\n            width || height ? 'style=\"max-width:100%;height:auto;\"' : ''\n        ].join(' ');\n        return `\n            <div class=\"walrus-image-block\">\n                <object type=\"image/png\" data=\"${objUrl}\" class=\"col-4 ps-0\" ${sizeAttrs}></object>\n            </div>\n        `;\n    }" + ')')
+    }];
+    marked.use({ extensions });
+
+    // Lấy blob-id từ URL param (?markdown=<blob-id>)
+    function getBlobIdFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('markdown');
+    }
+
+    async function fetchAndRenderMarkdown() {
+      const blobId = getBlobIdFromUrl();
+      if (!blobId) {
+        document.getElementById('preview').innerHTML = '<em>No blob-id provided in URL.</em>';
+        return;
+      }
+      const url = `https://aggregator.walrus-testnet.walrus.space/v1/blobs/${blobId}`;
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Failed to fetch blob');
+        const md = await resp.text();
+        document.getElementById('preview').innerHTML = marked.parse(md);
+
+      } catch (e) {
+        document.getElementById('preview').innerHTML = '<em>Failed to load blob content.</em>';
+      }
+    }
+
+    fetchAndRenderMarkdown();
+  </script>
+</body>
+</html>
